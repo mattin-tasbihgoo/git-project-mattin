@@ -23,6 +23,9 @@ public class git {
                 throw new IOException("Git directory exists");
             gitDir.mkdirs();
 
+            File objectsDir = new File("git/Objects");
+            objectsDir.mkdirs();
+
             File index = new File("git/index");
             if (!index.exists())
                 index.createNewFile();
