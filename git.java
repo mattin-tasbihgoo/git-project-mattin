@@ -12,7 +12,7 @@ import java.nio.file.Path;
 public class git {
 
     public static void main(String[] args) {
-        init();
+        // init();
 
         // hashfile test
         // try {
@@ -85,10 +85,12 @@ public class git {
     public static void createBlob(String filePath) {
         try {
             String hash = hashFile(filePath);
+            System.out.println(hash); // test line
             FileWriter blobWriter = new FileWriter("git/objects/" + hash);
-            BufferedReader blobReader = new BufferedReader(new FileReader("git/objects/" + hash));
-            String blob = blobReader.readLine();
-            blobReader.close();
+            BufferedReader OGFileReader = new BufferedReader(new FileReader(filePath));
+            String blob = OGFileReader.readLine();
+            System.out.println(blob); // test line
+            OGFileReader.close();
 
             blobWriter.write(blob);
             blobWriter.close();
