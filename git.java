@@ -52,7 +52,7 @@ public class git {
                 throw new IOException("Git directory exists");
             gitDir.mkdirs();
 
-            File objectsDir = new File("git/Objects");
+            File objectsDir = new File("git/objects");
             objectsDir.mkdirs();
 
             File index = new File("git/index");
@@ -90,14 +90,8 @@ public class git {
         try {
             String hash = hashFile(filePath);
             // System.out.println(hash); // test line
-            FileWriter blobWriter = new FileWriter("git/objects/" + hash);
-            BufferedReader OGFileReader = new BufferedReader(new FileReader(filePath));
-            String blob = OGFileReader.readLine();
-            // System.out.println(blob); // test line
-            OGFileReader.close();
-
-            blobWriter.write(blob);
-            blobWriter.close();
+            if (!Files.exists(Path.of("git/objects/" + hash)))
+                Files.copy(Path.of(filePath), Path.of("git/objects/" + hash));
             updateIndex(filePath);
         } catch (IOException e) {
             System.out.println("File error: " + e.getMessage());
@@ -112,9 +106,9 @@ public class git {
             System.out.println(hash + " " + filePath);
             BufferedReader indexReader = new BufferedReader(new FileReader("git/index"));
             if (indexReader.readLine() != null)
-                 indexWriter.write("\n" + hash + " " + filePath);
-            else 
-                 indexWriter.write(hash + " " + filePath);
+                indexWriter.write("\n" + hash + " " + filePath);
+            else
+                indexWriter.write(hash + " " + filePath);
 
             indexReader.close();
             indexWriter.close();
