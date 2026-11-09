@@ -8,6 +8,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Date;
 
 public class git {
 
@@ -31,14 +32,29 @@ public class git {
         // }
 
         try {
-            FileWriter helloWriter = new FileWriter("Hello.txt");
+            FileWriter helloWriter = new FileWriter("myProgram/Hello.txt");
             helloWriter.write("Hello World\n");
             helloWriter.close();
             createBlob("Hello.txt");
-            FileWriter byeWriter = new FileWriter("Bye.txt");
+            FileWriter byeWriter = new FileWriter("myProgram/Bye.txt");
             byeWriter.write("Bye World\n");
             byeWriter.close();
             createBlob("Bye.txt");
+
+            // taj's tree test (TTT)
+            String workingList = "blob 1111111111111111111111111111111111111111 myProgram/docs/Hello.txt\n"
+                    + "blob 2222222222222222222222222222222222222222 myProgram/docs/World.txt\n"
+                    + "blob 3333333333333333333333333333333333333333 myProgram/README.md";
+            String treeHash = createTree(workingList, "myProgram/docs");
+            System.out.println("Tree hash: " + treeHash);
+            // Call it again to check that the hash is the same
+            String secondHash = createTree(workingList, "myProgram/docs");
+            System.out.println("Second tree hash: " + secondHash);
+
+            // tajs other test
+            String rootHash = buildRootTree();
+            System.out.println("Root tree hash: " + rootHash);
+
         } catch (Exception e) {
             System.out.println("File error: " + e.getMessage());
             e.printStackTrace();
@@ -52,7 +68,7 @@ public class git {
                 throw new IOException("Git directory exists");
             gitDir.mkdirs();
 
-            File objectsDir = new File("git/Objects");
+            File objectsDir = new File("git/objects");
             objectsDir.mkdirs();
 
             File index = new File("git/index");
@@ -90,14 +106,9 @@ public class git {
         try {
             String hash = hashFile(filePath);
             // System.out.println(hash); // test line
-            FileWriter blobWriter = new FileWriter("git/objects/" + hash);
-            BufferedReader OGFileReader = new BufferedReader(new FileReader(filePath));
-            String blob = OGFileReader.readLine();
-            // System.out.println(blob); // test line
-            OGFileReader.close();
+            byte[] content = Files.readAllBytes(Path.of(filePath));
+            Files.write(Path.of("git/objects/" + hash), content);
 
-            blobWriter.write(blob);
-            blobWriter.close();
             updateIndex(filePath);
         } catch (IOException e) {
             System.out.println("File error: " + e.getMessage());
@@ -106,22 +117,328 @@ public class git {
     }
 
     public static void updateIndex(String filePath) {
-        try {
-            String hash = hashFile(filePath);
-            FileWriter indexWriter = new FileWriter("git/index", true);
-            System.out.println(hash + " " + filePath);
-            BufferedReader indexReader = new BufferedReader(new FileReader("git/index"));
-            if (indexReader.readLine() != null)
-                 indexWriter.write("\n" + hash + " " + filePath);
-            else 
-                 indexWriter.write(hash + " " + filePath);
+    try {
+        String hash = hashFile(filePath);
+        String relativePath = filePath;
+        String entry = hash + " " + relativePath;
 
-            indexReader.close();
-            indexWriter.close();
+        boolean hasEntries = false;
+        boolean duplicate = false;
+
+        String line;
+        String newIndex = "";
+
+        BufferedReader indexReader =
+                new BufferedReader(new FileReader("git/index"));
+
+        while ((line = indexReader.readLine()) != null) {
+            hasEntries = true;
+
+            if (line.equals(entry)) {
+                duplicate = true;
+            }
+
+            // Preserve entries for other file paths.
+            if (!line.endsWith(" " + relativePath) || line.equals(entry)) {
+                if (!newIndex.isEmpty()) {
+                    newIndex += "\n";
+                }
+                newIndex += line;
+            }
+        }
+
+        indexReader.close();
+
+        if (!duplicate) {
+            if (!newIndex.isEmpty()) {
+                newIndex += "\n";
+            }
+            newIndex += entry;
+        }
+
+        // Rewrite the index with the updated contents.
+        FileWriter indexWriter = new FileWriter("git/index", false);
+        indexWriter.write(newIndex);
+        indexWriter.close();
+
+        if (!duplicate) {
+            System.out.println(entry);
+        }
+
+    } catch (IOException e) {
+        System.out.println("File error: " + e.getMessage());
+        e.printStackTrace();
+    }
+}
+
+    public static String createTree(String workingList, String dirPath) {
+        try {
+            String treeFileContents = "";
+            String[] listOfEntries = workingList.split("\n");
+
+            for (int i = 0; i < listOfEntries.length; i++) {
+                String currentEntry = listOfEntries[i];
+
+                if (currentEntry.equals("") == false) {
+
+                    int firstSpace = currentEntry.indexOf(" ");
+                    int secondSpace = currentEntry.indexOf(" ", firstSpace + 1);
+
+                    String fileType = currentEntry.substring(0, firstSpace);
+                    String fileHash = currentEntry.substring(firstSpace + 1, secondSpace);
+                    String fullFilePath = currentEntry.substring(secondSpace + 1);
+
+                    int lastSlash = fullFilePath.lastIndexOf("/");
+
+
+                    String parentDirectory = "";
+                    String fileOrFolderName = fullFilePath;
+
+                    if (lastSlash != -1) {
+                        parentDirectory = fullFilePath.substring(0, lastSlash);
+                        fileOrFolderName = fullFilePath.substring(lastSlash + 1);
+                    }
+
+                    if (parentDirectory.equals(dirPath)) {
+                        if (treeFileContents.equals("") == false) {
+                            treeFileContents = treeFileContents + "\n";
+                        }
+                        
+                        treeFileContents = treeFileContents + fileType + " " + fileHash + " " + fileOrFolderName;
+                        }
+                }
+            }
+
+            FileWriter temporaryFileWriter = new FileWriter("git/treeTemp");
+            temporaryFileWriter.write(treeFileContents);
+            temporaryFileWriter.close();
+
+            String treeHash = hashFile("git/treeTemp");
+
+            File treeFile = new File("git/objects/" + treeHash);
+
+            if (treeFile.exists() == false) {
+                FileWriter treeFileWriter = new FileWriter(treeFile);
+                treeFileWriter.write(treeFileContents);
+                treeFileWriter.close();
+            }
+
+            File temporaryFile = new File("git/treeTemp");
+            temporaryFile.delete();
+
+            return treeHash;
 
         } catch (IOException e) {
             System.out.println("File error: " + e.getMessage());
             e.printStackTrace();
+            return "";
         }
     }
+
+    public static String buildRootTree() {
+        try {
+            // Step 1: Read the index into a working list.
+            String[] workingList = new String[1000];
+            int count = 0;
+
+            BufferedReader reader = new BufferedReader(new FileReader("git/index"));
+
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
+
+                int space = line.indexOf(' ');
+                String hash = line.substring(0, space);
+                String path = line.substring(space + 1).trim();
+
+                workingList[count] = "blob " + hash + " " + path;
+                count++;
+            }
+
+            reader.close();
+
+            // Step 2: Sort the working list alphabetically by path.
+            for (int i = 0; i < count - 1; i++) {
+                for (int j = i + 1; j < count; j++) {
+                    String path1 = getPath(workingList[i]);
+                    String path2 = getPath(workingList[j]);
+
+                    if (path1.compareTo(path2) > 0) {
+                        String temp = workingList[i];
+                        workingList[i] = workingList[j];
+                        workingList[j] = temp;
+                    }
+                }
+            }
+
+            // Step 3: Keep processing directories until
+            // every entry belongs directly to the root.
+            while (true) {
+                String deepestDirectory = "";
+                int deepestLevel = 0;
+
+                for (int i = 0; i < count; i++) {
+                    String path = getPath(workingList[i]);
+                    int slash = path.lastIndexOf('/');
+
+                    if (slash != -1) {
+                        String parent = path.substring(0, slash);
+
+                        int level = 1;
+                        for (int j = 0; j < parent.length(); j++) {
+                            if (parent.charAt(j) == '/') {
+                                level++;
+                            }
+                        }
+
+                        if (level > deepestLevel) {
+                            deepestLevel = level;
+                            deepestDirectory = parent;
+                        }
+                    }
+                }
+
+                // No directories remain to process.
+                if (deepestDirectory.equals("")) {
+                    break;
+                }
+
+                // Create the tree for the deepest directory.
+                String treeHash = createTree(
+                        makeWorkingListString(workingList, count),
+                        deepestDirectory);
+
+                if (treeHash.equals("")) {
+                    throw new IOException(
+                            "Could not create tree: " + deepestDirectory);
+                }
+
+                // Step 4: Remove direct children of this directory.
+                int i = 0;
+
+                while (i < count) {
+                    String path = getPath(workingList[i]);
+                    int slash = path.lastIndexOf('/');
+
+                    String parent = "";
+
+                    if (slash != -1) {
+                        parent = path.substring(0, slash);
+                    }
+
+                    if (parent.equals(deepestDirectory)) {
+                        // Shift all later entries one position left.
+                        for (int j = i; j < count - 1; j++) {
+                            workingList[j] = workingList[j + 1];
+                        }
+
+                        count--;
+                    } else {
+                        i++;
+                    }
+                }
+
+                // Add the new tree entry.
+                workingList[count] = "tree " + treeHash + " " + deepestDirectory;
+                count++;
+
+                // Sort again after collapsing the directory.
+                for (int a = 0; a < count - 1; a++) {
+                    for (int b = a + 1; b < count; b++) {
+                        String path1 = getPath(workingList[a]);
+                        String path2 = getPath(workingList[b]);
+
+                        if (path1.compareTo(path2) > 0) {
+                            String temp = workingList[a];
+                            workingList[a] = workingList[b];
+                            workingList[b] = temp;
+                        }
+                    }
+                }
+            }
+
+            // Step 5: Build the root tree.
+            String rootHash = createTree(
+                    makeWorkingListString(workingList, count), "");
+
+            return rootHash;
+
+        } catch (IOException e) {
+            System.out.println("Error: " + e.getMessage());
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+    // Gets the path portion of a working-list entry.
+    public static String getPath(String entry) {
+        int firstSpace = entry.indexOf(' ');
+        int secondSpace = entry.indexOf(' ', firstSpace + 1);
+
+        return entry.substring(secondSpace + 1);
+    }
+
+    // Converts the array into the newline-separated string
+    // expected by createTree().
+    public static String makeWorkingListString(
+            String[] workingList, int count) {
+
+        String result = "";
+
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                result += "\n";
+            }
+
+            result += workingList[i];
+        }
+
+        return result;
+    }
+
+    public static String commit(String author, String message) { 
+        try {
+            String rootTreeHash = buildRootTree();
+            if (rootTreeHash.isEmpty()) { 
+                throw new IOException("Couldn't make the root tree yo (shouldn't happen)");
+            }
+
+            String papaHash = Files.readString(Path.of("git/HEAD")).trim();
+
+            String commitString = "tree: " + rootTreeHash + "\n";
+            if (!papaHash.equals("")) { 
+                commitString += "parent: " + papaHash + "\n";
+            }
+            commitString += "author: "  + author + "\ndate: " + new Date() + "\nmessage: " + message;
+
+            FileWriter temporaryFileWriter = new FileWriter("git/commitTemp");
+            temporaryFileWriter.write(commitString);
+            temporaryFileWriter.close();
+
+            String commitHash = hashFile("git/commitTemp");
+
+            File temporaryFile = new File("git/commitTemp");
+            temporaryFile.delete();
+
+            FileWriter commitWriter = new FileWriter("git/objects/" + commitHash);
+            commitWriter.write(commitString);
+            commitWriter.close();
+
+            FileWriter headWriter = new FileWriter("git/HEAD");
+            headWriter.write(commitHash);
+            headWriter.close();
+
+            return commitHash;  
+
+        } catch (Exception e) { 
+            System.out.println("Error with Commitment");
+            e.printStackTrace();
+            return "Error";
+        }
+
+    }
+
 }
