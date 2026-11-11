@@ -126,7 +126,7 @@ public class git {
             String relativePath = filePath;
             String entry = hash + " " + relativePath;
 
-            boolean hasEntries = false;
+            // boolean hasEntries = false;
             boolean duplicate = false;
 
             String line;
@@ -135,7 +135,7 @@ public class git {
             BufferedReader indexReader = new BufferedReader(new FileReader("git/index"));
 
             while ((line = indexReader.readLine()) != null) {
-                hasEntries = true;
+                // hasEntries = true;
 
                 if (line.equals(entry)) {
                     duplicate = true;
