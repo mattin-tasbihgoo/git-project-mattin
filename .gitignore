@@ -24,4 +24,6 @@ hs_err_pid*
 replay_pid*
 
 /git
+/myProgram
+a.txt
 .DS_Store
